@@ -391,6 +391,29 @@ Display is handled by the display handler, not by state updates."
        :isError :false))
     (should (null (gethash "call_123" tools)))))
 
+(ert-deftest pi-coding-agent-test-event-compaction-start-sets-compacting ()
+  "compaction_start event sets pi-coding-agent--status to compacting."
+  (let ((pi-coding-agent--status 'idle)
+        (pi-coding-agent--state nil))
+    (pi-coding-agent--update-state-from-event '(:type "compaction_start" :reason "threshold"))
+    (should (eq pi-coding-agent--status 'compacting))))
+
+(ert-deftest pi-coding-agent-test-event-compaction-end-sets-idle ()
+  "compaction_end event sets pi-coding-agent--status to idle."
+  (let ((pi-coding-agent--status 'compacting)
+        (pi-coding-agent--state nil))
+    (pi-coding-agent--update-state-from-event '(:type "compaction_end" :aborted :false))
+    (should (eq pi-coding-agent--status 'idle))))
+
+(ert-deftest pi-coding-agent-test-event-auto-compaction-aliases-supported ()
+  "Legacy auto_compaction_* events remain supported."
+  (let ((pi-coding-agent--status 'idle)
+        (pi-coding-agent--state nil))
+    (pi-coding-agent--update-state-from-event '(:type "auto_compaction_start" :reason "threshold"))
+    (should (eq pi-coding-agent--status 'compacting))
+    (pi-coding-agent--update-state-from-event '(:type "auto_compaction_end" :aborted :false))
+    (should (eq pi-coding-agent--status 'idle))))
+
 (ert-deftest pi-coding-agent-test-ensure-active-tools-from-nil ()
   "pi-coding-agent--ensure-active-tools works when pi-coding-agent--state is nil."
   (let ((pi-coding-agent--state nil))

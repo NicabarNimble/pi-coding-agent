@@ -5292,12 +5292,12 @@ Commands with embedded newlines should not have any lines deleted."
     (should (equal pi-coding-agent--activity-phase "thinking"))))
 
 (ert-deftest pi-coding-agent-test-activity-phase-compact-on-compaction ()
-  "Activity phase becomes compact on auto_compaction_start."
+  "Activity phase becomes compact on compaction_start."
   (with-temp-buffer
     (pi-coding-agent-chat-mode)
     (setq pi-coding-agent--activity-phase "idle")
     (pi-coding-agent--handle-display-event
-     '(:type "auto_compaction_start" :reason "threshold"))
+     '(:type "compaction_start" :reason "threshold"))
     (should (equal pi-coding-agent--activity-phase "compact"))))
 
 (ert-deftest pi-coding-agent-test-activity-phase-idle-on-agent-end ()
@@ -5309,12 +5309,12 @@ Commands with embedded newlines should not have any lines deleted."
     (should (equal pi-coding-agent--activity-phase "idle"))))
 
 (ert-deftest pi-coding-agent-test-activity-phase-idle-on-compaction-end ()
-  "Activity phase becomes idle on auto_compaction_end."
+  "Activity phase becomes idle on compaction_end."
   (with-temp-buffer
     (pi-coding-agent-chat-mode)
     (setq pi-coding-agent--activity-phase "compact")
     (pi-coding-agent--handle-display-event
-     '(:type "auto_compaction_end" :aborted t :result nil))
+     '(:type "compaction_end" :aborted t :result nil))
     (should (equal pi-coding-agent--activity-phase "idle"))))
 
 (ert-deftest pi-coding-agent-test-display-compaction-result-shows-header-tokens-summary ()
@@ -5348,20 +5348,20 @@ Commands with embedded newlines should not have any lines deleted."
     (should (string-match-p "\\*\\*Bold\\*\\*" (buffer-string)))
     (should (string-match-p "`code`" (buffer-string)))))
 
-(ert-deftest pi-coding-agent-test-display-handler-handles-auto-compaction-start ()
-  "Display handler processes auto_compaction_start events."
+(ert-deftest pi-coding-agent-test-display-handler-handles-compaction-start ()
+  "Display handler processes compaction_start events."
   (with-temp-buffer
     (pi-coding-agent-chat-mode)
-    (pi-coding-agent--handle-display-event '(:type "auto_compaction_start" :reason "threshold"))
+    (pi-coding-agent--handle-display-event '(:type "compaction_start" :reason "threshold"))
     ;; Status should change to compacting
     (should (eq pi-coding-agent--status 'compacting))))
 
-(ert-deftest pi-coding-agent-test-display-handler-handles-auto-compaction-end ()
-  "Display handler processes auto_compaction_end with successful result."
+(ert-deftest pi-coding-agent-test-display-handler-handles-compaction-end ()
+  "Display handler processes compaction_end with successful result."
   (with-temp-buffer
     (pi-coding-agent-chat-mode)
     (pi-coding-agent--handle-display-event
-     '(:type "auto_compaction_end"
+     '(:type "compaction_end"
        :aborted nil
        :result (:summary "Context was compacted."
                 :tokensBefore 50000
@@ -5370,14 +5370,23 @@ Commands with embedded newlines should not have any lines deleted."
     (should (string-match-p "Compaction" (buffer-string)))
     (should (string-match-p "50,000" (buffer-string)))))
 
-(ert-deftest pi-coding-agent-test-display-handler-handles-auto-compaction-aborted ()
-  "Display handler processes auto_compaction_end when aborted."
+(ert-deftest pi-coding-agent-test-display-handler-handles-compaction-aborted ()
+  "Display handler processes compaction_end when aborted."
   (with-temp-buffer
     (pi-coding-agent-chat-mode)
     (setq pi-coding-agent--status 'compacting)
     (pi-coding-agent--handle-display-event
-     '(:type "auto_compaction_end" :aborted t :result nil))
+     '(:type "compaction_end" :aborted t :result nil))
     ;; Status should return to idle
+    (should (eq pi-coding-agent--status 'idle))))
+
+(ert-deftest pi-coding-agent-test-display-handler-handles-auto-compaction-aliases ()
+  "Display handler keeps legacy auto_compaction_* event aliases working."
+  (with-temp-buffer
+    (pi-coding-agent-chat-mode)
+    (pi-coding-agent--handle-display-event '(:type "auto_compaction_start" :reason "threshold"))
+    (should (eq pi-coding-agent--status 'compacting))
+    (pi-coding-agent--handle-display-event '(:type "auto_compaction_end" :aborted t :result nil))
     (should (eq pi-coding-agent--status 'idle))))
 
 (ert-deftest pi-coding-agent-test-thinking-rendered-as-blockquote ()

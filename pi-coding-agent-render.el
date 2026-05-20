@@ -1042,18 +1042,18 @@ Updates buffer-local state and renders display updates."
      (pi-coding-agent--display-tool-update
       (plist-get event :partialResult)
       (pi-coding-agent--tool-block-get (plist-get event :toolCallId))))
-    ("auto_compaction_start"
+    ((or "compaction_start" "auto_compaction_start")
      (setq pi-coding-agent--status 'compacting)
      (pi-coding-agent--set-activity-phase "compact")
      (let ((reason (plist-get event :reason)))
-       (message "Pi: %sAuto-compacting... (C-c C-k to cancel)"
+       (message "Pi: %sCompacting... (C-c C-k to cancel)"
                 (if (equal reason "overflow") "Context overflow, " ""))))
-    ("auto_compaction_end"
+    ((or "compaction_end" "auto_compaction_end")
      (setq pi-coding-agent--status 'idle)
      (pi-coding-agent--set-activity-phase "idle")
      (if (pi-coding-agent--normalize-boolean (plist-get event :aborted))
          (progn
-           (message "Pi: Auto-compaction cancelled")
+           (message "Pi: Compaction cancelled")
            ;; Clear queue on abort (user wanted to stop)
            (pi-coding-agent--clear-followup-queue))
        (when-let* ((result (plist-get event :result)))
