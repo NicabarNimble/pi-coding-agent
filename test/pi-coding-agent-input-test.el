@@ -180,8 +180,8 @@
       (kill-buffer chat-buf)
       (kill-buffer input-buf))))
 
-(ert-deftest pi-coding-agent-test-auto-compaction-success-sends-queued-messages ()
-  "auto_compaction_end with aborted=false processes followup queue.
+(ert-deftest pi-coding-agent-test-compaction-success-sends-queued-messages ()
+  "compaction_end with aborted=false processes followup queue.
 Uses :false (JSON false representation) to verify boolean normalization."
   (with-temp-buffer
     (pi-coding-agent-chat-mode)
@@ -191,7 +191,8 @@ Uses :false (JSON false representation) to verify boolean normalization."
       (cl-letf (((symbol-function 'pi-coding-agent--send-prompt)
                  (lambda (text) (setq sent-text text))))
         (pi-coding-agent--handle-display-event
-         '(:type "auto_compaction_end"
+         '(:type "compaction_end"
+           :reason "threshold"
            :aborted :false
            :result (:tokensBefore 1000 :summary "Summary" :timestamp 1234567890000))))
       ;; Queue should be empty after processing
@@ -199,8 +200,8 @@ Uses :false (JSON false representation) to verify boolean normalization."
       ;; The queued message should have been sent
       (should (equal sent-text "queued message")))))
 
-(ert-deftest pi-coding-agent-test-auto-compaction-end-aborted-clears-queue ()
-  "auto_compaction_end when aborted clears followup queue without sending."
+(ert-deftest pi-coding-agent-test-compaction-end-aborted-clears-queue ()
+  "compaction_end when aborted clears followup queue without sending."
   (with-temp-buffer
     (pi-coding-agent-chat-mode)
     (let ((sent-text nil))
@@ -208,9 +209,10 @@ Uses :false (JSON false representation) to verify boolean normalization."
       (setq pi-coding-agent--followup-queue '("queued message"))
       (cl-letf (((symbol-function 'pi-coding-agent--send-prompt)
                  (lambda (text) (setq sent-text text))))
-        ;; Simulate auto_compaction_end event (aborted)
+        ;; Simulate compaction_end event (aborted)
         (pi-coding-agent--handle-display-event
-         '(:type "auto_compaction_end"
+         '(:type "compaction_end"
+           :reason "threshold"
            :aborted t)))
       ;; Queue should be cleared (user cancelled)
       (should (null pi-coding-agent--followup-queue))

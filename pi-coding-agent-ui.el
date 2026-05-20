@@ -1477,7 +1477,7 @@ Returns t if available, nil otherwise."
   "Check all required dependencies.
 Displays warnings for missing dependencies."
   (unless (pi-coding-agent--check-pi)
-    (display-warning 'pi (format "%s not found in PATH. Install with: npm install -g @mariozechner/pi-coding-agent"
+    (display-warning 'pi (format "%s not found in PATH. Install with: npm install -g @earendil-works/pi-coding-agent"
                                  (car pi-coding-agent-executable))
                      :error))
   (pi-coding-agent--maybe-install-essential-grammars)

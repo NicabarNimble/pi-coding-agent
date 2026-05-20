@@ -7,7 +7,8 @@ BATCH = $(EMACS) --batch -Q -L . \
 LOCAL_LOAD_PATH = --eval "(setq load-path (cons (expand-file-name \".\") load-path))"
 
 # Pi CLI version — single source of truth (workflows extract this automatically)
-PI_VERSION ?= 0.65.0
+PI_VERSION ?= 0.75.4
+PI_PACKAGE ?= @earendil-works/pi-coding-agent
 PI_BIN ?= .cache/pi/node_modules/.bin/pi
 PI_BIN_DIR = $(abspath $(dir $(PI_BIN)))
 
@@ -150,9 +151,9 @@ setup-pi:
 		fi; \
 	fi
 	@if [ ! -x "$(PI_BIN)" ]; then \
-		echo "Installing pi@$(PI_VERSION) to .cache/pi/..."; \
+		echo "Installing $(PI_PACKAGE)@$(PI_VERSION) to .cache/pi/..."; \
 		rm -rf .cache/pi; \
-		npm install --prefix .cache/pi @mariozechner/pi-coding-agent@$(PI_VERSION) --silent; \
+		npm install --prefix .cache/pi --ignore-scripts $(PI_PACKAGE)@$(PI_VERSION) --silent; \
 	fi
 	@echo "Using pi: $(PI_BIN)"
 	@$(PI_BIN) --version || (echo "ERROR: pi not working"; exit 1)
