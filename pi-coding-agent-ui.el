@@ -1477,11 +1477,135 @@ Returns t if available, nil otherwise."
   "Check all required dependencies.
 Displays warnings for missing dependencies."
   (unless (pi-coding-agent--check-pi)
-    (display-warning 'pi (format "%s not found in PATH. Install with: npm install -g @mariozechner/pi-coding-agent"
+    (display-warning 'pi (format "%s not found in PATH. Install with: npm install -g @earendil-works/pi-coding-agent"
                                  (car pi-coding-agent-executable))
                      :error))
   (pi-coding-agent--maybe-install-essential-grammars)
   (pi-coding-agent--maybe-install-optional-grammars))
+
+(defcustom pi-coding-agent-doctor-rpc-timeout 5
+  "Seconds to wait for each RPC smoke-check request in `pi-coding-agent-doctor'."
+  :type 'natnum
+  :group 'pi-coding-agent)
+
+(defun pi-coding-agent--doctor-command-output (program args)
+  "Run PROGRAM with ARGS and return (EXIT-CODE . OUTPUT)."
+  (with-temp-buffer
+    (let ((exit-code (apply #'call-process program nil t nil args)))
+      (cons exit-code (string-trim (buffer-string))))))
+
+(defun pi-coding-agent--doctor-pi-output (&rest args)
+  "Run `pi-coding-agent-executable' with ARGS and return (EXIT-CODE . OUTPUT)."
+  (pi-coding-agent--doctor-command-output
+   (car pi-coding-agent-executable)
+   (append (cdr pi-coding-agent-executable) args)))
+
+(defun pi-coding-agent--doctor-git-output (directory &rest args)
+  "Run git ARGS in DIRECTORY and return output on success, or nil."
+  (when (and directory (file-directory-p directory) (executable-find "git"))
+    (let ((default-directory directory))
+      (pcase-let ((`(,exit-code . ,output)
+                   (pi-coding-agent--doctor-command-output "git" args)))
+        (and (zerop exit-code) output)))))
+
+(defun pi-coding-agent--doctor-straight-repo ()
+  "Return straight.el repo path for pi-coding-agent when discoverable."
+  (when-let* ((library (locate-library "pi-coding-agent")))
+    (let ((path (file-truename library)))
+      (when (string-match "\\(.*/straight/\\)build-[^/]+/pi-coding-agent/" path)
+        (expand-file-name "repos/pi-coding-agent" (match-string 1 path))))))
+
+(defun pi-coding-agent--doctor-insert-check (label ok detail)
+  "Insert one doctor check with LABEL, OK, and DETAIL."
+  (insert (format "%s %-28s %s\n"
+                  (if ok "✓" "✗")
+                  label
+                  (or detail ""))))
+
+(defun pi-coding-agent--doctor-rpc-smoke ()
+  "Return (OK . DETAIL) for a minimal pi RPC protocol smoke check."
+  (let ((proc nil)
+        (pi-coding-agent-extra-args (append pi-coding-agent-extra-args
+                                            '("--no-session"))))
+    (condition-case err
+        (unwind-protect
+            (progn
+              (setq proc (pi-coding-agent--start-process default-directory))
+              (let* ((state (pi-coding-agent--rpc-sync
+                             proc '(:type "get_state")
+                             pi-coding-agent-doctor-rpc-timeout))
+                     (commands (and (eq (plist-get state :success) t)
+                                    (pi-coding-agent--rpc-sync
+                                     proc '(:type "get_commands")
+                                     pi-coding-agent-doctor-rpc-timeout))))
+                (cond
+                 ((not (eq (plist-get state :success) t))
+                  (cons nil (or (plist-get state :error) "get_state failed or timed out")))
+                 ((not (eq (plist-get commands :success) t))
+                  (cons nil (or (plist-get commands :error) "get_commands failed or timed out")))
+                 (t
+                  (let* ((data (plist-get state :data))
+                         (session-id (pi-coding-agent--normalize-string-or-null
+                                      (plist-get data :sessionId)))
+                         (command-count (length (or (plist-get (plist-get commands :data)
+                                                              :commands)
+                                                    []))))
+                    (cons t (format "get_state/get_commands ok%s; %d commands"
+                                    (if session-id
+                                        (format "; session %s" session-id)
+                                      "")
+                                    command-count)))))))
+          (when (and proc (process-live-p proc))
+            (delete-process proc)))
+      (error (cons nil (error-message-string err))))))
+
+;;;###autoload
+(defun pi-coding-agent-doctor ()
+  "Check the local Emacs pi adapter against the installed pi CLI/RPC surface."
+  (interactive)
+  (let ((buffer (get-buffer-create "*Pi Coding Agent Doctor*"))
+        (executable-path (executable-find (car pi-coding-agent-executable))))
+    (with-current-buffer buffer
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert "Pi Coding Agent Doctor\n======================\n\n")
+        (insert (format "Checked: %s\n\n" (format-time-string "%Y-%m-%d %H:%M:%S %z")))
+        (pi-coding-agent--doctor-insert-check
+         "pi executable"
+         executable-path
+         (or executable-path (format "%s not found" (car pi-coding-agent-executable))))
+        (if executable-path
+            (pcase-let ((`(,exit-code . ,version) (pi-coding-agent--doctor-pi-output "--version")))
+              (pi-coding-agent--doctor-insert-check
+               "pi --version"
+               (zerop exit-code)
+               (if (zerop exit-code) version (format "failed: %s" version))))
+          (pi-coding-agent--doctor-insert-check "pi --version" nil "skipped"))
+        (pi-coding-agent--doctor-insert-check
+         "adapter version"
+         t
+         pi-coding-agent-version)
+        (let* ((library (locate-library "pi-coding-agent"))
+               (repo (pi-coding-agent--doctor-straight-repo))
+               (origin (pi-coding-agent--doctor-git-output repo "remote" "get-url" "origin"))
+               (commit (pi-coding-agent--doctor-git-output repo "rev-parse" "--short" "HEAD")))
+          (pi-coding-agent--doctor-insert-check "adapter library" library library)
+          (pi-coding-agent--doctor-insert-check
+           "adapter origin"
+           (and origin (string-match-p "NicabarNimble/pi-coding-agent" origin))
+           (or origin "unknown/non-straight checkout"))
+          (pi-coding-agent--doctor-insert-check "adapter commit" commit commit))
+        (if executable-path
+            (pcase-let ((`(,ok . ,detail) (pi-coding-agent--doctor-rpc-smoke)))
+              (pi-coding-agent--doctor-insert-check "RPC smoke" ok detail))
+          (pi-coding-agent--doctor-insert-check "RPC smoke" nil "skipped"))
+        (insert "\nRecommended update flow:\n")
+        (insert "  pi update --self\n")
+        (insert "  doom sync\n")
+        (insert "  M-x pi-coding-agent-doctor\n"))
+      (goto-char (point-min))
+      (special-mode))
+    (pop-to-buffer buffer)))
 
 ;;;; Startup Header
 
