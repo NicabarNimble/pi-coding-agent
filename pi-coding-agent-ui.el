@@ -1559,6 +1559,9 @@ Displays warnings for missing dependencies."
             (delete-process proc)))
       (error (cons nil (error-message-string err))))))
 
+(defconst pi-coding-agent-version "2.3.1"
+  "Version of pi-coding-agent.")
+
 ;;;###autoload
 (defun pi-coding-agent-doctor ()
   "Check the local Emacs pi adapter against the installed pi CLI/RPC surface."
@@ -1608,9 +1611,6 @@ Displays warnings for missing dependencies."
     (pop-to-buffer buffer)))
 
 ;;;; Startup Header
-
-(defconst pi-coding-agent-version "2.3.1"
-  "Version of pi-coding-agent.")
 
 (defconst pi-coding-agent--version-probe-delay 0.1
   "Seconds to wait before probing `pi --version' for a new process.")
